@@ -1,4 +1,4 @@
-package com.example.desktopApp.ui.screens
+/*package com.example.desktopApp.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -59,5 +59,48 @@ fun ComputersScreen() {
         }
     }
 }
-
+*/
 // DrawerContent можно удалить если используешь вкладки
+package com.example.desktopApp.ui.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import com.example.desktopApp.ui.components.ClientsScreen
+import com.example.desktopApp.ui.components.ComputersScreen
+import com.example.desktopApp.ui.components.ServicesScreen
+import com.example.desktopApp.ui.components.SessionsScreen
+
+@Composable
+fun MainScreen() {
+    var currentTab by remember { mutableStateOf(0) }
+    val tabs = listOf("💻 Компьютеры", "👥 Клиенты", "🕐 Сессии", "🍕 Услуги")
+
+    Scaffold(
+        topBar = {
+            TopAppBar(title = { Text("Computer Club Manager") })
+        }
+    ) { padding ->
+        Column(modifier = Modifier.padding(padding)) {
+            // Вкладки
+            TabRow(selectedTabIndex = currentTab) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        text = { Text(title) },
+                        selected = currentTab == index,
+                        onClick = { currentTab = index }
+                    )
+                }
+            }
+
+            // Содержимое вкладок
+            when (currentTab) {
+                0 -> ComputersScreen()
+                1 -> ClientsScreen()
+                2 -> SessionsScreen()
+                3 -> ServicesScreen()
+            }
+        }
+    }
+}

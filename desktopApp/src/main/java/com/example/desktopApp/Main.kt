@@ -14,7 +14,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "Computer Club Manager",
-        state = WindowState(width = 900.0.dp, height = 500.0.dp)
+        state = WindowState(width = 900.0.dp, height = 700.0.dp)
     ) {
         MainScreen(
 

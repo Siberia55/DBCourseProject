@@ -1,6 +1,5 @@
 package com.example.desktopApp.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,9 +22,47 @@ fun ClientsScreen() {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingClient by remember { mutableStateOf<Client?>(null) }
 
+    // Состояние фильтрации и сортировки
+    var searchQuery by remember { mutableStateOf("") }
+    var sortBy by remember { mutableStateOf<ClientSortField?>(null) }
+    var sortDirection by remember { mutableStateOf(FilterSortState.SortDirection.ASCENDING) }
+
     // Загрузка клиентов из БД
     LaunchedEffect(Unit) {
         clients = ClientDao.getAllClients()
+    }
+
+    // Фильтрация и сортировка
+    val filteredAndSortedClients = remember(clients, searchQuery, sortBy, sortDirection) {
+        var result = clients
+
+        // Фильтрация по поисковому запросу
+        if (searchQuery.isNotBlank()) {
+            result = result.filter { client ->
+                client.firstName.contains(searchQuery, ignoreCase = true) ||
+                        client.lastName.contains(searchQuery, ignoreCase = true) ||
+                        client.phone?.contains(searchQuery, ignoreCase = true) == true ||
+                        client.email?.contains(searchQuery, ignoreCase = true) == true
+            }
+        }
+
+        // Сортировка
+        sortBy?.let { field ->
+            result = when (field) {
+                ClientSortField.FIRST_NAME -> result.sortedBy { it.firstName }
+                ClientSortField.LAST_NAME -> result.sortedBy { it.lastName }
+                ClientSortField.REGISTRATION_DATE -> result.sortedBy { it.registrationDate }
+                ClientSortField.PHONE -> result.sortedBy { it.phone ?: "" }
+                ClientSortField.EMAIL -> result.sortedBy { it.email ?: "" }
+            }
+
+            // Обратный порядок если DESCENDING
+            if (sortDirection == FilterSortState.SortDirection.DESCENDING) {
+                result = result.reversed()
+            }
+        }
+
+        result
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -34,7 +71,6 @@ fun ClientsScreen() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
-
         ) {
             Text("Управление клиентами", style = MaterialTheme.typography.h4)
             Button(
@@ -49,9 +85,23 @@ fun ClientsScreen() {
 
         Spacer(Modifier.height(16.dp))
 
+        // Панель фильтрации и сортировки
+        ClientFilterSortPanel(
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            sortBy = sortBy,
+            onSortByChange = { sortBy = it },
+            sortDirection = sortDirection,
+            onSortDirectionChange = { sortDirection = it },
+            clientCount = filteredAndSortedClients.size,
+            totalCount = clients.size
+        )
+
+        Spacer(Modifier.height(16.dp))
+
         // Таблица клиентов
         ClientTable(
-            clients = clients,
+            clients = filteredAndSortedClients,
             onEditClick = { client -> editingClient = client },
             onDeleteClick = { client ->
                 ClientDao.deleteClient(client.id)
@@ -84,6 +134,157 @@ fun ClientsScreen() {
 }
 
 @Composable
+fun ClientFilterSortPanel(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    sortBy: ClientSortField?,
+    onSortByChange: (ClientSortField?) -> Unit,
+    sortDirection: FilterSortState.SortDirection,
+    onSortDirectionChange: (FilterSortState.SortDirection) -> Unit,
+    clientCount: Int,
+    totalCount: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = 2.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Поиск
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Поиск:", modifier = Modifier.padding(end = 8.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    placeholder = { Text("Имя, фамилия, телефон, email...") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { onSearchQueryChange("") }) {
+                                Icon(Icons.Default.Clear, "Очистить поиск")
+                            }
+                        }
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Сортировка
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Сортировка:", modifier = Modifier.padding(end = 8.dp))
+
+                // Выбор поля для сортировки
+                var expanded by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = sortBy?.name ?: "Не выбрано",
+                        onValueChange = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        trailingIcon = {
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, "Выбрать поле для сортировки")
+                            }
+                        }
+                    )
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        DropdownMenuItem(onClick = {
+                            onSortByChange(null)
+                            expanded = false
+                        }) {
+                            Text("Не выбрано")
+                        }
+                        listOf(
+                            ClientSortField.FIRST_NAME,
+                            ClientSortField.LAST_NAME,
+                            ClientSortField.REGISTRATION_DATE,
+                            ClientSortField.PHONE,
+                            ClientSortField.EMAIL
+                        ).forEach { field ->
+                            DropdownMenuItem(onClick = {
+                                onSortByChange(field)
+                                expanded = false
+                            }) {
+                                Text(field.name)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // Кнопка смены направления сортировки
+                IconButton(
+                    onClick = {
+                        onSortDirectionChange(
+                            if (sortDirection == FilterSortState.SortDirection.ASCENDING)
+                                FilterSortState.SortDirection.DESCENDING
+                            else
+                                FilterSortState.SortDirection.ASCENDING
+                        )
+                    },
+                    enabled = sortBy != null
+                ) {
+                    Icon(
+                        if (sortDirection == FilterSortState.SortDirection.ASCENDING)
+                            Icons.Default.ArrowUpward
+                        else
+                            Icons.Default.ArrowDownward,
+                        "Изменить порядок сортировки"
+                    )
+                }
+
+                // Кнопка сброса сортировки
+                IconButton(
+                    onClick = {
+                        onSortByChange(null)
+                        onSortDirectionChange(FilterSortState.SortDirection.ASCENDING)
+                    },
+                    enabled = sortBy != null
+                ) {
+                    Icon(Icons.Default.Clear, "Сбросить сортировку")
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Статистика
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Найдено клиентов: $clientCount из $totalCount",
+                    style = MaterialTheme.typography.caption,
+                    color = MaterialTheme.colors.secondary
+                )
+
+                // Индикатор активной сортировки
+                if (sortBy != null) {
+                    Text(
+                        "Сортировка: ${sortBy.name} (${if (sortDirection == FilterSortState.SortDirection.ASCENDING) "↑" else "↓"})",
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Остальной код (ClientTable и ClientEditDialog) остается без изменений
+@Composable
 fun ClientTable(
     clients: List<Client>,
     onEditClick: (Client) -> Unit,
@@ -92,14 +293,12 @@ fun ClientTable(
     Card(
         modifier = Modifier.fillMaxSize(),
         elevation = 4.dp,
-
     ) {
         Column {
             // Заголовки таблицы
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-
             ) {
                 Text("ID", style = MaterialTheme.typography.h6, modifier = Modifier.weight(1f))
                 Text("Имя", style = MaterialTheme.typography.h6, modifier = Modifier.weight(2f))
@@ -119,7 +318,6 @@ fun ClientTable(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
-
                     ) {
                         Text("${client.id}", modifier = Modifier.weight(1f))
                         Text(client.firstName, modifier = Modifier.weight(2f))

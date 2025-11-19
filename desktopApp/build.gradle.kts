@@ -19,6 +19,8 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-dao:0.50.1")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.50.1")
     implementation("org.jetbrains.exposed:exposed-java-time:0.50.1")
+    implementation(compose.materialIconsExtended)
+    implementation(libs.androidx.benchmark.traceprocessor.jvm)
 }
 
 compose.desktop {
